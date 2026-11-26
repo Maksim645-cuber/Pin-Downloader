@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Скачать видео из Pinterest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --mist: #e7ecef;
+    --ink: #16202a;
+    --paper: #ffffff;
+    --code: #d9e4ec;
+    --red: #d90f2b;
+    --muted: #55636f;
+    font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--mist);
+    color: var(--ink);
+    display: flex;
+    justify-content: center;
+    padding: 56px 20px;
+  }
+  main { width: 100%; max-width: 620px; }
+  h1 { font-size: clamp(2rem, 6vw, 3rem); line-height: 1.05; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .lead { color: var(--muted); font-size: 1.05rem; line-height: 1.5; margin: 0 0 28px; max-width: 52ch; }
+  .lead b { color: var(--ink); font-weight: 500; }
+ 
+  textarea {
+    width: 100%;
+    height: 150px;
+    resize: vertical;
+    background: var(--ink);
+    color: var(--code);
+    border: 0;
+    border-radius: 10px;
+    padding: 16px 18px;
+    font: 0.9rem/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  textarea::placeholder { color: #7d8e9c; }
+  textarea:focus-visible, .btn:focus-visible { outline: 3px solid var(--red); outline-offset: 3px; }
+ 
+  .btn {
+    display: inline-block;
+    margin-top: 14px;
+    background: var(--red);
+    color: #fff;
+    border: 0;
+    border-radius: 999px;
+    padding: 14px 28px;
+    font: 700 1rem "Bricolage Grotesque", system-ui, sans-serif;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .btn:hover { background: #b80c24; }
+  .btn:disabled { opacity: .6; cursor: progress; }
+ 
+  #msg { margin: 14px 0 0; color: var(--red); font-weight: 500; min-height: 1.4em; }
+ 
+  #result { margin-top: 28px; background: var(--paper); border-radius: 14px; padding: 18px; }
+  #result[hidden] { display: none; }
+  video { width: 100%; max-height: 520px; border-radius: 8px; background: #000; display: block; }
+  #result .btn { margin-top: 16px; }
+ 
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Видео из Pinterest на ваше устройство</h1>
+  <p class="lead">Откройте видео-пин, нажмите <b>«…» → «Получить код для встраивания пина»</b>, скопируйте код и вставьте сюда.</p>
+ 
+  <textarea id="code" spellcheck="false" placeholder='<iframe src="https://assets.pinterest.com/ext/embed.html?id=…"></iframe>'></textarea>
+  <button class="btn" id="go" type="button">Найти видео</button>
+  <p id="msg" role="alert"></p>
+ 
+  <section id="result" hidden>
+    <video id="player" controls playsinline></video>
+    <a class="btn" id="save" download>Скачать видео</a>
+  </section>
+</main>
+ 
+<script>
+  const $ = (s) => document.querySelector(s);
+  const code = $('#code'), go = $('#go'), msg = $('#msg'), result = $('#result');
+ 
+  go.addEventListener('click', async () => {
+    msg.textContent = '';
+    result.hidden = true;
+    if (!code.value.trim()) {
+      msg.textContent = 'Вставьте код для встраивания пина.';
+      return;
+    }
+    go.disabled = true;
+    go.textContent = 'Ищу видео…';
+    try {
+      const r = await fetch('/api/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.value }),
+      });
+      const raw = await r.text();
+      let d;
+      try {
+        d = JSON.parse(raw);
+      } catch {
+        const wrongServer = [404, 405, 501].includes(r.status);
+        throw new Error(wrongServer
+          ? 'Эта страница открыта не через app.py. Запустите «python app.py» и откройте http://127.0.0.1:5000'
+          : 'Сервер ответил не так, как ожидалось (код ' + r.status + ').');
+      }
+      if (!r.ok) throw new Error(d.error || 'Что-то пошло не так.');
+      const player = $('#player');
+      player.poster = d.thumb || '';
+      player.src = d.preview;
+      $('#save').href = d.download;
+      result.hidden = false;
+    } catch (e) {
+      msg.textContent = e.message;
+    } finally {
+      go.disabled = false;
+      go.textContent = 'Найти видео';
+    }
+  });
+</script>
+</body>
+</html>
